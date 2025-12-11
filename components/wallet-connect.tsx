@@ -394,7 +394,7 @@ export default function WalletConnect({ onAuthSuccess }: WalletConnectProps) {
                   <code className="text-primary text-xs">
                     {NFT_CONTRACT_MONAD.slice(0, 10)}...{NFT_CONTRACT_MONAD.slice(-8)}
                   </code>
-                  
+                  <a
                     href={`https://testnet-explorer.monad.xyz/address/${NFT_CONTRACT_MONAD}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -414,7 +414,7 @@ export default function WalletConnect({ onAuthSuccess }: WalletConnectProps) {
                   <code className="text-primary text-xs">
                     {NFT_CONTRACT_BASE.slice(0, 10)}...{NFT_CONTRACT_BASE.slice(-8)}
                   </code>
-                  
+                  <a
                     href={`https://basescan.org/address/${NFT_CONTRACT_BASE}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -465,7 +465,7 @@ export default function WalletConnect({ onAuthSuccess }: WalletConnectProps) {
           <Alert className="bg-blue-900/50 border-blue-700">
             <AlertDescription className="text-blue-200">
               MetaMask is required to connect your wallet.{" "}
-              
+              <a
                 href="https://metamask.io/download/"
                 target="_blank"
                 rel="noopener noreferrer"

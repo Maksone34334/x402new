@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,13 +13,13 @@ import {
   Zap,
   Lock,
   AlertCircle,
-  User,
-  LogOut,
-  Wallet,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import dynamic from "next/dynamic"
+import type { ClientEvmSigner } from "@x402/evm"
+import { x402Client, x402HTTPClient } from "@x402/fetch"
+import { registerExactEvmScheme } from "@x402/evm/exact/client"
 
 const WalletConnect = dynamic(() => import("@/components/wallet-connect"), {
   ssr: false,
@@ -44,55 +44,212 @@ interface OsintUser {
 }
 
 export default function OSINTMini() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [currentUser, setCurrentUser] = useState<OsintUser | null>(null)
   const [query, setQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null)
   const [error, setError] = useState("")
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [chainIdHex, setChainIdHex] = useState<string | null>(null)
+  const [baseUsdcBalance, setBaseUsdcBalance] = useState<string | null>(null)
 
   const { toast } = useToast()
 
+  // Show actual connected chainId (to avoid confusion with wallet UI)
   useEffect(() => {
-    // Check saved session
-    const savedUser = localStorage.getItem("osint_user")
-    const savedToken = localStorage.getItem("osint_token")
+    if (typeof window === "undefined" || !window.ethereum) return
 
-    if (savedUser && savedToken) {
+    const refresh = async () => {
       try {
-        const user = JSON.parse(savedUser)
-        setCurrentUser(user)
-        setIsLoggedIn(true)
-      } catch (error) {
-        console.error("Error parsing saved user:", error)
-        localStorage.removeItem("osint_user")
-        localStorage.removeItem("osint_token")
+        const cid = (await window.ethereum.request({ method: "eth_chainId" })) as string
+        setChainIdHex(cid)
+      } catch {
+        setChainIdHex(null)
       }
     }
+
+    refresh()
+    const handler = () => refresh()
+    window.ethereum.on?.("chainChanged", handler)
+    return () => window.ethereum.removeListener?.("chainChanged", handler)
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("osint_user")
-    localStorage.removeItem("osint_token")
-    setCurrentUser(null)
-    setIsLoggedIn(false)
-    setApiResponse(null)
-    setQuery("")
-
-    toast({
-      title: "Logged Out",
-      description: "You have been logged out",
-    })
-  }
-
-  const makeSearch = async () => {
-    if (!query.trim()) {
-      setError("Please enter a target for analysis")
+  // Fetch USDC balance on Base MAINNET for the connected address (contract: 0x833589f...02913)
+  useEffect(() => {
+    const addr = walletAddress
+    if (!addr) {
+      setBaseUsdcBalance(null)
       return
     }
 
-    if (!isLoggedIn || !currentUser) {
-      setError("Please connect your wallet first")
+    const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    const BALANCE_OF_SELECTOR = "0x70a08231"
+    const rpcUrls = [
+      "https://mainnet.base.org",
+      "https://base.gateway.tenderly.co",
+      "https://base-rpc.publicnode.com",
+    ]
+    let rpcIndex = 0
+    let backoffMs = 0
+
+    const fetchBalance = async () => {
+      try {
+        if (backoffMs > 0) return
+        const paddedAddress = addr.toLowerCase().replace(/^0x/, "").padStart(64, "0")
+        const data = BALANCE_OF_SELECTOR + paddedAddress
+        const rpcUrl = rpcUrls[rpcIndex % rpcUrls.length]
+        rpcIndex++
+        const resp = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_call",
+            params: [{ to: USDC_BASE, data }, "latest"],
+          }),
+        })
+        if (resp.status === 429) {
+          backoffMs = 30000
+          setTimeout(() => {
+            backoffMs = 0
+            fetchBalance()
+          }, backoffMs)
+          return
+        }
+        const json = await resp.json()
+        if (!json?.result) {
+          setBaseUsdcBalance(null)
+          return
+        }
+        const raw = BigInt(json.result)
+        // USDC has 6 decimals
+        const denom = BigInt("1000000")
+        const whole = raw / denom
+        const frac = raw % denom
+        const fracStr = frac.toString().padStart(6, "0").replace(/0+$/, "")
+        setBaseUsdcBalance(fracStr ? `${whole.toString()}.${fracStr}` : whole.toString())
+      } catch {
+        setBaseUsdcBalance(null)
+      }
+    }
+
+    fetchBalance()
+    const t = setInterval(fetchBalance, 15000)
+    return () => clearInterval(t)
+  }, [walletAddress])
+
+  const x402Fetch = useMemo(() => {
+    if (!walletAddress) return null
+    if (typeof window === "undefined") return null
+    if (!window.ethereum) return null
+
+    // Make BigInt JSON-safe for any downstream stringify operations
+    if (typeof BigInt !== "undefined" && !(BigInt.prototype as any).toJSON) {
+      ;(BigInt.prototype as any).toJSON = function () {
+        return this.toString()
+      }
+    }
+
+    type X402TypedData = {
+      domain: Record<string, unknown>
+      types: Record<string, unknown>
+      primaryType: string
+      message: Record<string, unknown>
+    }
+
+    const buildEip712DomainTypes = (domain: Record<string, unknown>) => {
+      const fields: Array<{ name: string; type: string }> = []
+      if (domain.name != null) fields.push({ name: "name", type: "string" })
+      if (domain.version != null) fields.push({ name: "version", type: "string" })
+      if (domain.chainId != null) fields.push({ name: "chainId", type: "uint256" })
+      if (domain.verifyingContract != null) fields.push({ name: "verifyingContract", type: "address" })
+      if (domain.salt != null) fields.push({ name: "salt", type: "bytes32" })
+      return fields
+    }
+
+    const signer: ClientEvmSigner = {
+      address: walletAddress as `0x${string}`,
+      signTypedData: async (typedData: X402TypedData) => {
+        // Some wallets require EIP712Domain to be explicitly present in types for v4.
+        const domainTypes = buildEip712DomainTypes(typedData.domain)
+        const types =
+          "EIP712Domain" in typedData.types
+            ? typedData.types
+            : { EIP712Domain: domainTypes, ...typedData.types }
+
+        // Normalize chainId to number where possible (avoids inconsistent signing)
+        const domain: any = { ...typedData.domain }
+        if (domain.chainId != null && typeof domain.chainId === "string" && /^0x[0-9a-f]+$/i.test(domain.chainId)) {
+          domain.chainId = Number.parseInt(domain.chainId, 16)
+        }
+
+        const payload = {
+          domain,
+          types,
+          primaryType: typedData.primaryType,
+          message: typedData.message,
+        }
+
+        const signature = await window.ethereum.request({
+          method: "eth_signTypedData_v4",
+          params: [walletAddress, JSON.stringify(payload)],
+        })
+        return signature as `0x${string}`
+      },
+    }
+
+    const client = new x402Client()
+    registerExactEvmScheme(client, { signer })
+    const httpClient = new x402HTTPClient(client)
+
+    // Same flow as wrapFetchWithPayment, but we keep it inline for clearer errors
+    return async (input: RequestInfo, init?: RequestInit) => {
+      const response = await fetch(input, init)
+      if (response.status !== 402) return response
+
+      const getHeader = (name: string) => response.headers.get(name)
+      let body: any = undefined
+      try {
+        const responseText = await response.text()
+        if (responseText) body = JSON.parse(responseText)
+      } catch {
+        body = undefined
+      }
+
+      const paymentRequired = httpClient.getPaymentRequiredResponse(getHeader, body)
+      const paymentPayload = await client.createPaymentPayload(paymentRequired)
+      const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload)
+
+      if (!init) throw new Error("Missing fetch request configuration")
+      if ((init as any).__is402Retry) throw new Error("Payment already attempted")
+
+      const newInit: any = {
+        ...init,
+        headers: {
+          ...(init.headers || {}),
+          ...paymentHeaders,
+          "Access-Control-Expose-Headers": "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
+        },
+        __is402Retry: true,
+      }
+
+      return await fetch(input, newInit)
+    }
+  }, [walletAddress])
+
+  const makeSearch = async () => {
+    if (!query.trim()) {
+      setError("Введите запрос (имя / телефон / email)")
+      return
+    }
+
+    if (!walletAddress) {
+      setError("Подключите кошелёк, чтобы оплатить запрос")
+      return
+    }
+
+    if (!x402Fetch) {
+      setError("Не удалось инициализировать x402 оплату (проверьте подключение кошелька)")
       return
     }
 
@@ -100,39 +257,53 @@ export default function OSINTMini() {
     setIsLoading(true)
 
     try {
-      const token = localStorage.getItem("osint_token")
+      // Ensure wallet is on Base mainnet (8453 / 0x2105) for EIP-712 signing
+      const expectedChainIdHex = "0x2105"
+      const currentChainIdHex = (await window.ethereum?.request?.({ method: "eth_chainId" })) as string | undefined
+      if (currentChainIdHex && currentChainIdHex.toLowerCase() !== expectedChainIdHex) {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: expectedChainIdHex }],
+        })
+      }
 
-      const response = await fetch("/api/search", {
+      const response = await x402Fetch("/api/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          request: query,
+          request: query, // "Zapros"
           limit: 1000,
           lang: "en",
         }),
       })
-
-      const data = await response.json()
+      const rawText = await response.text()
+      let data: any = null
+      try {
+        data = rawText ? JSON.parse(rawText) : null
+      } catch {
+        // non-JSON response
+        data = null
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Search failed")
+        const details = data?.message || data?.error || rawText || ""
+        throw new Error(details ? `${details}` : `HTTP ${response.status}`)
       }
 
       setApiResponse(data)
 
       toast({
-        title: "Analysis Complete",
-        description: `Intelligence gathered from ${Object.keys(data.List || {}).length} sources`,
+        title: "Готово",
+        description: `Найдено источников: ${Object.keys(data.List || {}).length}`,
       })
     } catch (error: any) {
       const errorMsg = error.message
       setError(errorMsg)
 
       toast({
-        title: "Analysis Failed",
+        title: "Ошибка",
         description: errorMsg,
         variant: "destructive",
       })
@@ -157,23 +328,12 @@ export default function OSINTMini() {
           </span>
         </div>
 
-        {isLoggedIn && currentUser && (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-primary text-primary">
-                {currentUser.address ? `${currentUser.address.slice(0, 6)}...${currentUser.address.slice(-4)}` : currentUser.id?.slice(0, 6) + '...' + currentUser.id?.slice(-4)}
-              </Badge>
-              <Badge className="bg-green-600 text-white">{currentUser.role}</Badge>
-            </div>
-            <Button
-              onClick={handleLogout}
-              variant="outline"
-              size="sm"
-              className="border-primary text-primary hover:bg-primary hover:text-white bg-transparent"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+        {walletAddress && (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="border-primary text-primary">
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </Badge>
+            <Badge className="bg-green-600 text-white">connected</Badge>
           </div>
         )}
       </header>
@@ -181,114 +341,61 @@ export default function OSINTMini() {
       {/* Main Content */}
       <div className="relative z-10 p-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {!isLoggedIn ? (
-            // Login Section
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                  OSINT <span className="text-primary">MINI</span>
-                </h1>
-                <p className="text-gray-400 text-lg">
-                  Real OSINT platform with NFT authentication
-                </p>
-              </div>
+          <div className="text-center mb-8">
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+              OSINT <span className="text-primary">MINI</span>
+            </h1>
+            <p className="text-gray-400 text-lg">
+              Оплата за запрос по протоколу x402 (Coinbase) — $0.30 за запрос
+            </p>
+          </div>
 
-              <Card className="w-full max-w-md mx-auto bg-card/90 border-primary/30 backdrop-blur-sm cyber-glow">
-                <CardHeader>
-                  <CardTitle className="text-center text-primary">Connect Wallet</CardTitle>
-                  <CardDescription className="text-center text-muted-foreground">
-                    Verify your NFT ownership to access OSINT tools
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <WalletConnect
-                    onAuthSuccess={(user, token) => {
-                      localStorage.setItem("osint_user", JSON.stringify(user))
-                      localStorage.setItem("osint_token", token)
-                      setCurrentUser(user)
-                      setIsLoggedIn(true)
-                      toast({
-                        title: "NFT Verified!",
-                        description: "Access granted to OSINT platform",
-                      })
-                    }}
-                  />
+          <div className="max-w-md mx-auto">
+            <WalletConnect onWalletChange={setWalletAddress} />
+          </div>
 
-                  <div className="text-xs text-muted-foreground bg-background/30 p-3 rounded border border-primary/20">
-                    <p className="mb-2">
-                      🔐 <strong>NFT Requirements & Limits:</strong>
-                    </p>
-                    <ul className="space-y-1 text-xs">
-                      <li>• Must hold OSINT HUB NFT on Base mainnet</li>
-                      <li>• Contract: 0x8cf392D33050F96cF6D0748486490d3dEae52564</li>
-                      <li>• NFT holders get: <span className="text-green-400 font-semibold">30 searches per day</span></li>
-                      <li>• Non-holders: <span className="text-red-400 font-semibold">No access</span></li>
-                    </ul>
+          <div className="max-w-md mx-auto">
+            <Alert className="bg-background/30 border-primary/20">
+              <AlertDescription className="text-muted-foreground">
+                <div className="text-xs space-y-1">
+                  <div>
+                    <span className="text-primary">Wallet chainId:</span>{" "}
+                    <span>{chainIdHex || "unknown"}</span> (Base Mainnet = <code>0x2105</code>)
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Feature Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                {[
-                  {
-                    icon: Globe,
-                    title: "Real OSINT Data",
-                    desc: "Access live intelligence databases",
-                  },
-                  {
-                    icon: Zap,
-                    title: "NFT Authentication",
-                    desc: "Secure access via Base mainnet NFTs",
-                  },
-                  {
-                    icon: Lock,
-                    title: "Professional Tools",
-                    desc: "Advanced OSINT search capabilities",
-                  },
-                ].map((feature, index) => (
-                  <Card
-                    key={feature.title}
-                    className="bg-card/80 border-primary/20 backdrop-blur-sm hover:border-primary/40 transition-all"
-                  >
-                    <CardContent className="p-6 text-center">
-                      <feature.icon className="w-12 h-12 text-primary mx-auto mb-4" />
-                      <h3 className="text-xl font-bold mb-2 text-white">{feature.title}</h3>
-                      <p className="text-gray-400 text-sm">{feature.desc}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </>
-          ) : (
-            // Main Application (when logged in)
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                  OSINT <span className="text-primary">MINI</span>
-                </h1>
-                <p className="text-gray-400 text-lg">
-                  Professional intelligence gathering platform
-                </p>
-              </div>
+                  <div>
+                    <span className="text-primary">USDC on Base (0x8335…):</span>{" "}
+                    <span>{baseUsdcBalance ?? "unknown"}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Если тут USDC = 0 или chainId не <code>0x2105</code>, facilitator вернёт{" "}
+                    <code>insufficient_balance</code>.
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
 
           {/* OSINT Terminal */}
           <Card className="bg-card/90 border-primary/30 backdrop-blur-sm cyber-glow">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2 text-primary">
                 <Shield className="w-5 h-5" />
-                <CardTitle className="text-lg">OSINT SEARCH</CardTitle>
+                <CardTitle className="text-lg">ЗАПРОС</CardTitle>
               </div>
+              <CardDescription className="text-muted-foreground">
+                Введите имя / телефон / email и нажмите “Отправить”. Система запросит оплату $0.30 через x402.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Input
-                    placeholder="Enter target for analysis: email, domain, IP, username..."
+                    placeholder="Введите имя, телефон или email..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     className="bg-input border-primary/30 text-foreground placeholder-muted-foreground"
                     onKeyPress={(e) => e.key === "Enter" && makeSearch()}
+                    disabled={false}
                   />
                 </div>
                 <Button
@@ -301,14 +408,14 @@ export default function OSINTMini() {
                   ) : (
                     <>
                       <Search className="mr-2 h-4 w-4" />
-                      Analyze
+                      Отправить
                     </>
                   )}
                 </Button>
               </div>
 
               <div className="text-sm text-muted-foreground">
-                <span className="text-primary">Examples:</span>
+                <span className="text-primary">Примеры:</span>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {["example@email.com", "google.com", "8.8.8.8", "@username"].map((example) => (
                     <Badge
@@ -329,6 +436,8 @@ export default function OSINTMini() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
+              {/* x402/wallet gating disabled for MVP */}
             </CardContent>
           </Card>
 
@@ -336,9 +445,9 @@ export default function OSINTMini() {
               {apiResponse && (
                 <Card className="bg-card/90 border-primary/30 backdrop-blur-sm">
                   <CardHeader>
-                    <CardTitle className="text-primary">Intelligence Report</CardTitle>
+                    <CardTitle className="text-primary">Результат</CardTitle>
                     <CardDescription className="text-muted-foreground">
-                      Real data from {Object.keys(apiResponse.List).length} OSINT source(s)
+                      Источников: {Object.keys(apiResponse.List).length}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -389,8 +498,8 @@ export default function OSINTMini() {
                   },
                   {
                     icon: Zap,
-                    title: "NFT Verified",
-                    desc: "Authenticated Base mainnet holder",
+                    title: "x402 Payments",
+                    desc: "$0.30 per request (USDC on Base)",
                   },
                   {
                     icon: Lock,
@@ -410,14 +519,12 @@ export default function OSINTMini() {
                   </Card>
                 ))}
               </div>
-            </>
-          )}
         </div>
       </div>
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-6 text-xs text-gray-500">
-        © 2025 OSINT MINI • {isLoggedIn ? "PROFESSIONAL" : "NFT-GATED"} INTELLIGENCE PLATFORM
+        © 2025 OSINT MINI • x402 PAY-PER-QUERY
       </footer>
     </div>
   )

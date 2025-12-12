@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.0",
+    "@coinbase/cdp-sdk": "^1.40.1",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
@@ -62,6 +63,9 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
     "viem": "^2.37.9",
+    "@x402/core": "^2.0.0",
+    "@x402/evm": "^2.0.0",
+    "@x402/fetch": "^2.0.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

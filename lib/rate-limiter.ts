@@ -1,4 +1,4 @@
-// Rate limiter for NFT holders based on wallet addresses
+// Rate limiter helpers for authenticated users based on wallet addresses
 interface RateLimitEntry {
   count: number
   resetTime: number
@@ -85,34 +85,29 @@ class RateLimiter {
 }
 
 // Create rate limiter instances for different user types
-export const nftHolderLimiter = new RateLimiter(30, 24 * 60 * 60 * 1000) // 30 requests per day for NFT holders
+export const authenticatedUserLimiter = new RateLimiter(30, 24 * 60 * 60 * 1000) // 30 requests per day per key
 export const regularUserLimiter = new RateLimiter(5, 24 * 60 * 60 * 1000) // 5 requests per day for regular users
 
 // Helper function to extract wallet address from token
 export function extractWalletFromToken(token: string): string | null {
   try {
-    // Find the _nft_ pattern and extract wallet address after it
-    const nftIndex = token.indexOf("_nft_")
-    console.log("nftIndex:", nftIndex)
-    if (nftIndex === -1) return null
+    const marker = "_user_"
+    const userIndex = token.indexOf(marker)
+    if (userIndex === -1) return null
 
-    const afterNft = token.substring(nftIndex + 5) // +5 for "_nft_"
-    console.log("afterNft:", afterNft)
-    const parts = afterNft.split("_")
-    console.log("parts:", parts)
+    const afterMarker = token.substring(userIndex + marker.length)
+    const [walletAddress] = afterMarker.split("_")
 
-    if (parts.length >= 1 && parts[0].startsWith("0x")) {
-      console.log("Returning wallet address:", parts[0])
-      return parts[0] // wallet address (before timestamp)
+    if (walletAddress && walletAddress.startsWith("0x")) {
+      return walletAddress
     }
-    console.log("No valid wallet address found")
     return null
   } catch {
     return null
   }
 }
 
-// Helper function to check if user is NFT holder based on token
-export function isNFTHolder(token: string): boolean {
-  return token.includes("_nft_")
+// Helper to validate token prefix against the session secret
+export function isValidSessionToken(token: string, sessionSecret: string): boolean {
+  return token.startsWith(sessionSecret)
 }

@@ -86,7 +86,7 @@
   --sidebar-ring: #dc2626;
 }
 
-@theme inline {
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

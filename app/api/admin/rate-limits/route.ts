@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { nftHolderLimiter, regularUserLimiter } from "@/lib/rate-limiter"
+import { authenticatedUserLimiter, regularUserLimiter } from "@/lib/rate-limiter"
 
 export const dynamic = "force-dynamic"
 
@@ -25,13 +25,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    const nftStats = nftHolderLimiter.getStats()
+    const nftStats = authenticatedUserLimiter.getStats()
     const regularStats = regularUserLimiter.getStats()
 
     return NextResponse.json({
       success: true,
       rateLimits: {
-        nftHolders: {
+        authenticatedUsers: {
           maxRequests: 200,
           windowMs: 3600000,
           activeWallets: nftStats.totalWallets,

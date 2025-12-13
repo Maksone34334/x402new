@@ -2,6 +2,7 @@
   "name": "osint-mini",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
@@ -52,9 +53,9 @@
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
     "next-themes": "latest",
-    "react": "^18",
+    "react": "18.2.0",
     "react-day-picker": "latest",
-    "react-dom": "^18",
+    "react-dom": "18.2.0",
     "react-hook-form": "latest",
     "react-resizable-panels": "latest",
     "recharts": "latest",
@@ -70,8 +71,8 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

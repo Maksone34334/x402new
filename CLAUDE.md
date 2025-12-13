@@ -88,6 +88,10 @@ Required in `.env.local`:
 OSINT_API_TOKEN=              # OSINT service API token
 OSINT_SESSION_SECRET=         # Session signing secret
 
+# x402 / payments (USDC on Base)
+# Receiver address for payments. Supports both EVM_ADDRESS and legacy typo EVM_ADRESS.
+EVM_ADDRESS=0x69D51B18C1EfE88A9302a03A60127d98eD3D307D
+
 # NFT Contract Addresses (read from .env but also hardcoded in code)
 NFT_CONTRACT_ADDRESS_BASE=
 NFT_CONTRACT_ADDRESS_MONAD=

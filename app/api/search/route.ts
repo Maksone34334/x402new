@@ -25,10 +25,14 @@ let httpServerPromise: Promise<x402HTTPResourceServer> | null = null
 async function getHttpServer(origin: string): Promise<x402HTTPResourceServer> {
   if (httpServerPromise) return httpServerPromise
 
-  const payTo = process.env.EVM_ADDRESS
-  if (!payTo) {
-    throw new Error("EVM_ADDRESS is not set (receiver address for USDC on Base).")
-  }
+  // Receiver address for USDC on Base.
+  // - Prefer correctly spelled env var: EVM_ADDRESS
+  // - Support common typo: EVM_ADRESS
+  // - Fall back to the default receiver address used by this project
+  const payTo =
+    process.env.EVM_ADDRESS ||
+    process.env.EVM_ADRESS ||
+    "0x69D51B18C1EfE88A9302a03A60127d98eD3D307D"
 
   const rawFacilitatorUrl = process.env.FACILITATOR_URL
   const originUrl = new URL(origin)

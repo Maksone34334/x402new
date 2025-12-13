@@ -24,9 +24,39 @@ export const metadata: Metadata = {
     images: [`${APP_URL}/images/osint-identity-card.png`],
   },
   other: {
-    // BASE VERIFY
+    // Base verify
     "base:app_id": "693b26d88a7c4e55fec73e9e",
+    "fc:frame": JSON.stringify({
+      version: "next",
+      imageUrl: `${APP_URL}/images/osint-identity-card.png`,
+      button: {
+        title: `Launch ${APP_NAME}`,
+        action: {
+          type: "launch_frame",
+          name: APP_NAME,
+          url: APP_URL,
+        },
+      },
+    }),
   },
 }
 
- 
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="theme-color" content="#0052FF" />
+        <meta name="base-mini-app" content="true" />
+        <meta name="base:app_id" content="693b26d88a7c4e55fec73e9e" />
+      </head>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  )
+}

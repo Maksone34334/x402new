@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
 import { Providers } from "./providers"
+import { MiniAppReady } from "@/components/miniapp-ready"
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -73,6 +74,7 @@ export default function RootLayout({
         <meta name="base:app_id" content="693b26d88a7c4e55fec73e9e" />
       </head>
       <body>
+        <MiniAppReady />
         <Providers>{children}</Providers>
       </body>
     </html>

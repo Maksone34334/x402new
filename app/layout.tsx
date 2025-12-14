@@ -3,7 +3,10 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Providers } from "./providers"
 
-const APP_URL = "https://base-mini-app-flame.vercel.app"
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+  "https://base-mini-app-flame.vercel.app"
 const APP_NAME = "OSINT Mini"
 
 export const metadata: Metadata = {
@@ -26,6 +29,21 @@ export const metadata: Metadata = {
   other: {
     // Base verify
     "base:app_id": "693b26d88a7c4e55fec73e9e",
+    // Required for Mini App rich embeds + launch
+    "fc:miniapp": JSON.stringify({
+      version: "next",
+      imageUrl: `${APP_URL}/images/osint-identity-card.png`,
+      button: {
+        title: `Launch ${APP_NAME}`,
+        action: {
+          type: "launch_miniapp",
+          name: APP_NAME,
+          url: APP_URL,
+          splashImageUrl: `${APP_URL}/images/osint-identity-card.png`,
+          splashBackgroundColor: "#000000",
+        },
+      },
+    }),
     "fc:frame": JSON.stringify({
       version: "next",
       imageUrl: `${APP_URL}/images/osint-identity-card.png`,

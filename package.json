@@ -12,6 +12,7 @@
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.0",
     "@coinbase/cdp-sdk": "^1.40.1",
+    "@farcaster/miniapp-sdk": "^0.1.10",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",

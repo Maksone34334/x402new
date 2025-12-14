@@ -5,6 +5,28 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Brand neon */
+  --neon-blue: #2d6bff;
+}
+
+/* Optional local fonts (upload to /public/fonts) */
+@font-face {
+  font-family: "PocketCalculator";
+  src: url("/fonts/PocketCalculator.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Calculator";
+  src: url("/fonts/Calculator.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
   --font-size: 14px;
   --background: #0a0a0a;
   --foreground: #e5e5e5;
@@ -136,6 +158,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "PocketCalculator", "Calculator", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      "Liberation Mono", "Courier New", monospace;
   }
 }
 

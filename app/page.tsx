@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { sdk } from "@farcaster/miniapp-sdk"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +45,11 @@ interface OsintUser {
 }
 
 export default function OSINTMini() {
+  // Hide Base splash screen as soon as possible (Mini App requirement)
+  useEffect(() => {
+    void sdk.actions.ready()
+  }, [])
+
   const [query, setQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null)
@@ -53,6 +59,9 @@ export default function OSINTMini() {
   const [baseUsdcBalance, setBaseUsdcBalance] = useState<string | null>(null)
 
   const { toast } = useToast()
+
+  const PRICE_USD = 0.15
+  const PRICE_STR = `$${PRICE_USD.toFixed(2)}`
 
   // Show actual connected chainId (to avoid confusion with wallet UI)
   useEffect(() => {
@@ -239,17 +248,17 @@ export default function OSINTMini() {
 
   const makeSearch = async () => {
     if (!query.trim()) {
-      setError("Введите запрос (имя / телефон / email)")
+      setError("Enter a query (name / phone / email)")
       return
     }
 
     if (!walletAddress) {
-      setError("Подключите кошелёк, чтобы оплатить запрос")
+      setError("Connect your wallet to pay for the request")
       return
     }
 
     if (!x402Fetch) {
-      setError("Не удалось инициализировать x402 оплату (проверьте подключение кошелька)")
+      setError("Failed to initialize x402 payment (check your wallet connection)")
       return
     }
 
@@ -295,15 +304,15 @@ export default function OSINTMini() {
       setApiResponse(data)
 
       toast({
-        title: "Готово",
-        description: `Найдено источников: ${Object.keys(data.List || {}).length}`,
+        title: "Done",
+        description: `Sources found: ${Object.keys(data.List || {}).length}`,
       })
     } catch (error: any) {
       const errorMsg = error.message
       setError(errorMsg)
 
       toast({
-        title: "Ошибка",
+        title: "Error",
         description: errorMsg,
         variant: "destructive",
       })
@@ -313,115 +322,129 @@ export default function OSINTMini() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white relative overflow-hidden">
-      {/* Background Grid */}
-      <div className="absolute inset-0 cyber-grid opacity-30"></div>
+    <div className="min-h-screen bg-black text-[#2d6bff] relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 cyber-grid opacity-25" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(45,107,255,0.20),transparent_55%)]" />
 
-      {/* Header */}
-      <header className="relative z-10 flex items-center justify-between p-6 border-b border-primary/20">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold">
-            OSINT<span className="text-primary">MINI</span>
-          </span>
-        </div>
+      {/* Top-left brand */}
+      <div className="relative z-10 px-10 pt-8 text-xs tracking-widest opacity-80">
+        OSINTMINI
+      </div>
 
-        {walletAddress && (
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-primary text-primary">
-              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-            </Badge>
-            <Badge className="bg-green-600 text-white">connected</Badge>
-          </div>
-        )}
-      </header>
-
-      {/* Main Content */}
-      <div className="relative z-10 p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">
-              OSINT <span className="text-primary">MINI</span>
+      <div className="relative z-10 px-6 pb-10 pt-6">
+        <div className="mx-auto w-full max-w-3xl">
+          {/* Title */}
+          <div className="text-center mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-[0.2em] drop-shadow-[0_0_12px_rgba(45,107,255,0.65)]">
+              OSINT MINI
             </h1>
-            <p className="text-gray-400 text-lg">
-              Оплата за запрос по протоколу x402 (Coinbase) — $0.30 за запрос
+            <p className="mt-2 text-[11px] opacity-80 tracking-widest">
+              PAYMENT FOR A REQUEST USING THE x402 PROTOCOL (COINBASE) IS {PRICE_STR} PER REQUEST
             </p>
           </div>
 
-          <div className="max-w-md mx-auto">
-            <WalletConnect onWalletChange={setWalletAddress} />
-          </div>
-
-          <div className="max-w-md mx-auto">
-            <Alert className="bg-background/30 border-primary/20">
-              <AlertDescription className="text-muted-foreground">
-                <div className="text-xs space-y-1">
-                  <div>
-                    <span className="text-primary">Wallet chainId:</span>{" "}
-                    <span>{chainIdHex || "unknown"}</span> (Base Mainnet = <code>0x2105</code>)
-                  </div>
-                  <div>
-                    <span className="text-primary">USDC on Base (0x8335…):</span>{" "}
-                    <span>{baseUsdcBalance ?? "unknown"}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Если тут USDC = 0 или chainId не <code>0x2105</code>, facilitator вернёт{" "}
-                    <code>insufficient_balance</code>.
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          </div>
-
-          {/* OSINT Terminal */}
-          <Card className="bg-card/90 border-primary/30 backdrop-blur-sm cyber-glow">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-2 text-primary">
-                <Shield className="w-5 h-5" />
-                <CardTitle className="text-lg">ЗАПРОС</CardTitle>
+          {/* Main frame */}
+          <div className="rounded-2xl border border-[#2d6bff]/60 bg-black/60 backdrop-blur-md shadow-[0_0_0_2px_rgba(45,107,255,0.20),0_0_50px_rgba(45,107,255,0.25)] overflow-hidden">
+            {/* Wallet */}
+            <div className="p-6 border-b border-[#2d6bff]/40">
+              <div className="flex items-center justify-center gap-2 text-2xl font-bold">
+                <Shield className="h-6 w-6" />
+                <span>Wallet</span>
               </div>
-              <CardDescription className="text-muted-foreground">
-                Введите имя / телефон / email и нажмите “Отправить”. Система запросит оплату $0.30 через x402.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Введите имя, телефон или email..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    className="bg-input border-primary/30 text-foreground placeholder-muted-foreground"
-                    onKeyPress={(e) => e.key === "Enter" && makeSearch()}
-                    disabled={false}
-                  />
-                </div>
+              <div className="mt-1 text-center text-xs opacity-80">
+                Connect your wallet to pay per request with x402
+              </div>
+
+              <div className="mt-4 max-w-md mx-auto">
+                <WalletConnect onWalletChange={setWalletAddress} />
+              </div>
+
+              <div className="mt-4 max-w-md mx-auto">
+                <Alert className="bg-black/40 border-[#2d6bff]/40 text-[#2d6bff]">
+                  <AlertDescription className="text-[11px] leading-relaxed">
+                    <div>
+                      <span className="opacity-80">Wallet chainId:</span> {chainIdHex || "unknown"} (Base Mainnet ={" "}
+                      <code>0x2105</code>)
+                    </div>
+                    <div>
+                      <span className="opacity-80">USDC on Base (0x8335…):</span> {baseUsdcBalance ?? "unknown"}
+                    </div>
+                    <div className="opacity-75">
+                      If USDC is 0 or chainId isn’t <code>0x2105</code>, the facilitator may return{" "}
+                      <code>insufficient_balance</code>.
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <div className="p-6 border-b border-[#2d6bff]/40">
+              <div className="text-center text-xs font-bold tracking-widest text-red-500 mb-2">
+                DISCLAIMER
+              </div>
+              <div className="mx-auto max-w-2xl text-[10px] leading-snug text-red-500/90">
+                THIS APPLICATION ACTS SOLELY AS A TECHNICAL INTERFACE BETWEEN THE USER AND THIRD‑PARTY OPEN‑SOURCE
+                INTELLIGENCE CONTENT/SERVICES. IT DOES NOT CREATE, HOST, OR CONTROL THE DATA PROVIDED BY THOSE EXTERNAL
+                SOURCES AND CANNOT GUARANTEE THE ACCURACY, COMPLETENESS, OR LEGALITY OF ANY INFORMATION OBTAINED THROUGH
+                THEM.
+                <br />
+                <br />
+                THE SOLE PURPOSE OF THIS APPLICATION IS TO HELP USERS PROTECT THEMSELVES FROM POTENTIAL FRAUD, SCAMS,
+                AND OTHER SECURITY RISKS BY SIMPLIFYING ACCESS TO INFORMATION THAT IS ALREADY AVAILABLE IN PUBLIC
+                SOURCES. THE APPLICATION DOES NOT INTEND, PROMOTE, OR AUTHORIZE ILLEGAL, EXCESSIVE, OR HARMFUL USE OF
+                SECURITY MEASURES, OR ANY OTHER UNLAWFUL ACTIVITY, AND MUST NOT BE USED FOR SUCH PURPOSES.
+                <br />
+                <br />
+                USERS REMAIN FULLY RESPONSIBLE FOR HOW THEY SEARCH, ACCESS, INTERPRET, AND USE ANY INFORMATION OBTAINED
+                THROUGH THIS APPLICATION, INCLUDING COMPLIANCE WITH ALL APPLICABLE LAWS (SUCH AS DATA PROTECTION,
+                PRIVACY, AND INTELLECTUAL PROPERTY LAWS).
+              </div>
+            </div>
+
+            {/* Request */}
+            <div className="p-6">
+              <div className="flex items-center gap-2 text-xl font-bold tracking-widest">
+                <span className="opacity-80">○</span> REQUEST
+              </div>
+              <div className="mt-1 text-[11px] opacity-80">
+                Enter your name/phone/email and click OSINT. The system will request payment of {PRICE_STR} via x402.
+              </div>
+
+              <div className="mt-4 flex gap-3 items-center">
+                <Input
+                  placeholder="ENTER YOUR NAME/PHONE/E‑MAIL"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="bg-black/40 border-[#2d6bff]/40 text-[#2d6bff] placeholder:text-[#2d6bff]/50"
+                  onKeyPress={(e) => e.key === "Enter" && makeSearch()}
+                  disabled={false}
+                />
                 <Button
                   onClick={makeSearch}
                   disabled={isLoading}
-                  className="bg-primary hover:bg-primary/90 text-white cyber-glow px-8"
+                  className="bg-transparent border border-[#2d6bff]/60 text-[#2d6bff] hover:bg-[#2d6bff]/10 px-6"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
                       <Search className="mr-2 h-4 w-4" />
-                      Отправить
+                      OSINT
                     </>
                   )}
                 </Button>
               </div>
 
-              <div className="text-sm text-muted-foreground">
-                <span className="text-primary">Примеры:</span>
+              <div className="mt-3 text-[11px] opacity-80">
+                EXAMPLE
                 <div className="flex flex-wrap gap-2 mt-2">
                   {["example@email.com", "google.com", "8.8.8.8", "@username"].map((example) => (
                     <Badge
                       key={example}
                       variant="outline"
-                      className="border-primary/30 text-primary cursor-pointer hover:bg-primary/10"
+                      className="border-[#2d6bff]/40 text-[#2d6bff] cursor-pointer hover:bg-[#2d6bff]/10"
                       onClick={() => setQuery(example)}
                     >
                       {example}
@@ -431,101 +454,63 @@ export default function OSINTMini() {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="bg-blue-900/50 border-blue-700">
+                <Alert variant="destructive" className="mt-4 bg-black/50 border-red-500/60 text-red-400">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              {/* x402/wallet gating disabled for MVP */}
-            </CardContent>
-          </Card>
-
-              {/* Results */}
               {apiResponse && (
-                <Card className="bg-card/90 border-primary/30 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="text-primary">Результат</CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      Источников: {Object.keys(apiResponse.List).length}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(apiResponse.List).map(([dbName, dbData]) => (
-                        <Card key={dbName} className="bg-secondary/50 border-primary/20">
-                          <CardHeader>
-                            <CardTitle className="text-lg text-primary">{dbName}</CardTitle>
-                            <CardDescription className="text-muted-foreground">{dbData.InfoLeak}</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            {dbData.Data && dbData.Data.length > 0 ? (
-                              <div className="space-y-2">
-                                {dbData.Data.slice(0, 5).map((item, index) => (
-                                  <div key={index} className="p-3 bg-background/50 rounded border border-primary/10">
-                                    {Object.entries(item).map(([key, value]) => (
-                                      <div key={key} className="flex justify-between py-1">
-                                        <span className="font-medium text-primary">{key}:</span>
-                                        <span className="text-foreground break-all">{String(value)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ))}
-                                {dbData.Data.length > 5 && (
-                                  <p className="text-sm text-muted-foreground text-center">
-                                    ... and {dbData.Data.length - 5} more records
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-muted-foreground">No intelligence found in this source</p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                {[
-                  {
-                    icon: Globe,
-                    title: "Live OSINT API",
-                    desc: "Real intelligence database access",
-                  },
-                  {
-                    icon: Zap,
-                    title: "x402 Payments",
-                    desc: "$0.30 per request (USDC on Base)",
-                  },
-                  {
-                    icon: Lock,
-                    title: "Secure Platform",
-                    desc: "Professional OSINT capabilities",
-                  },
-                ].map((feature, index) => (
-                  <Card
-                    key={feature.title}
-                    className="bg-card/80 border-primary/20 backdrop-blur-sm hover:border-primary/40 transition-all"
-                  >
-                    <CardContent className="p-6 text-center">
-                      <feature.icon className="w-12 h-12 text-primary mx-auto mb-4" />
-                      <h3 className="text-xl font-bold mb-2 text-white">{feature.title}</h3>
-                      <p className="text-gray-400 text-sm">{feature.desc}</p>
+                <div className="mt-6">
+                  <Card className="bg-black/40 border-[#2d6bff]/30 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-[#2d6bff]">RESULT</CardTitle>
+                      <CardDescription className="text-[#2d6bff]/70">
+                        Sources: {Object.keys(apiResponse.List).length}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {Object.entries(apiResponse.List).map(([dbName, dbData]) => (
+                          <Card key={dbName} className="bg-black/30 border-[#2d6bff]/20">
+                            <CardHeader>
+                              <CardTitle className="text-lg text-[#2d6bff]">{dbName}</CardTitle>
+                              <CardDescription className="text-[#2d6bff]/70">{dbData.InfoLeak}</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              {dbData.Data && dbData.Data.length > 0 ? (
+                                <div className="space-y-2">
+                                  {dbData.Data.slice(0, 5).map((item, index) => (
+                                    <div key={index} className="p-3 bg-black/40 rounded border border-[#2d6bff]/10">
+                                      {Object.entries(item).map(([key, value]) => (
+                                        <div key={key} className="flex justify-between gap-4 py-1">
+                                          <span className="font-medium text-[#2d6bff]">{key}:</span>
+                                          <span className="text-[#2d6bff]/90 break-all">{String(value)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {dbData.Data.length > 5 && (
+                                    <p className="text-[11px] text-[#2d6bff]/70 text-center">
+                                      … and {dbData.Data.length - 5} more records
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-[#2d6bff]/70">No intelligence found in this source</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="relative z-10 text-center py-6 text-xs text-gray-500">
-        © 2025 OSINT MINI • x402 PAY-PER-QUERY
-      </footer>
     </div>
   )
 }

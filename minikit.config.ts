@@ -19,7 +19,7 @@ export const minikitConfig = {
     description: "Advanced OSINT tools and analytics on Base blockchain for professional intelligence gathering",
     tagline: "Intelligence Made Simple",
     homeUrl: ROOT_URL,
-    iconUrl: `${ROOT_URL}/favicon.ico`,
+    iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/images/osint-identity-card.png`,
     splashBackgroundColor: "#0052FF",
     webhookUrl: `${ROOT_URL}/api/webhook`,

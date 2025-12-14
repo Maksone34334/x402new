@@ -13,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
           mode: 'auto',
           theme: 'default',
           name: 'OSINT Mini',
-          logo: '/favicon.ico',
+          logo: '/icon.png',
         },
       }}
     >

@@ -1,4 +1,7 @@
-const ROOT_URL = process.env.NEXT_PUBLIC_APP_URL || "https://base-mini-app-flame.vercel.app"
+const ROOT_URL =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+  "https://base-mini-app-flame.vercel.app"
 
 export const minikitConfig = {
   accountAssociation: {

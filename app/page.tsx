@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { sdk } from "@farcaster/miniapp-sdk"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,11 +44,6 @@ interface OsintUser {
 }
 
 export default function OSINTMini() {
-  // Hide Base splash screen as soon as possible (Mini App requirement)
-  useEffect(() => {
-    void sdk.actions.ready()
-  }, [])
-
   const [query, setQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null)

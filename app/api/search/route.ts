@@ -7,7 +7,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server"
 export const dynamic = "force-dynamic"
 
 const API_TOKEN = process.env.OSINT_API_TOKEN
-const X402_PRICE = process.env.X402_PRICE || "$0.15"
+const X402_PRICE = process.env.X402_PRICE || "$0.05"
 const X402_NETWORK = (process.env.X402_NETWORK || "eip155:8453") as any
 
 function makeNextAdapter(request: NextRequest): HTTPAdapter {

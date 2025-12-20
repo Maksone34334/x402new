@@ -54,7 +54,7 @@ export default function OSINTMini() {
 
   const { toast } = useToast()
 
-  const PRICE_USD = 0.15
+  const PRICE_USD = 0.05
   const PRICE_STR = `$${PRICE_USD.toFixed(2)}`
 
   // Show actual connected chainId (to avoid confusion with wallet UI)

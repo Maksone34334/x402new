@@ -1,6 +1,5 @@
+"use client"
 <meta name="base:app_id" content="68dbb767d2d79e214b6e35e0" />
-  "use client"
-
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

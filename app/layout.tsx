@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   other: {
     // Base verify
-    "base:app_id": "693b26d88a7c4e55fec73e9e",
+    "base:app_id": "68dbb767d2d79e214b6e35e0",
     // Required for Mini App rich embeds + launch
     "fc:miniapp": JSON.stringify({
       version: "next",

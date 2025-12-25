@@ -71,7 +71,7 @@ export default function RootLayout({
         <link rel="icon" href="/icon.png" />
         <meta name="theme-color" content="#0052FF" />
         <meta name="base-mini-app" content="true" />
-        <meta name="base:app_id" content="693b26d88a7c4e55fec73e9e" />
+        <meta name="base:app_id" content="68dbb767d2d79e214b6e35e0" />
       </head>
       <body>
         <MiniAppReady />

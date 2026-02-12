@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Providers } from "./providers"
 import { MiniAppReady } from "@/components/miniapp-ready"
@@ -76,6 +77,7 @@ export default function RootLayout({
       <body>
         <MiniAppReady />
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   )
